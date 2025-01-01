@@ -1,11 +1,12 @@
+use crate::api::client::TwitterClient;
 use crate::api::requests::request_api;
 use crate::error::Result;
-use crate::api::client::TwitterClient;
+use crate::timeline::types::Tweet;
+use reqwest::header::HeaderMap;
+use reqwest::Method;
 use serde::Deserialize;
 use serde_json::Value;
 use urlencoding;
-use reqwest::header::HeaderMap;
-use reqwest::Method;
 
 #[derive(Debug, Deserialize)]
 pub struct HomeTimelineResponse {
@@ -58,10 +59,10 @@ pub struct TweetResults {
 }
 
 pub async fn fetch_home_timeline(
-    client: &TwitterClient,    
+    client: &TwitterClient,
     count: i32,
     seen_tweet_ids: Vec<String>,
-) -> Result<Vec<Value>> {
+) -> Result<Vec<Tweet>> {
     let variables = serde_json::json!({
         "count": count,
         "includePromotedContent": true,
@@ -106,29 +107,28 @@ pub async fn fetch_home_timeline(
     let mut headers = HeaderMap::new();
     client.auth.install_headers(&mut headers).await?;
 
-    let (response, _) = request_api::<HomeTimelineResponse>(
-        &client.client,
-        &url,
-        headers,
-        Method::GET,
-        None,
-    ).await?;
+    let (response, _) =
+        request_api::<HomeTimelineResponse>(&client.client, &url, headers, Method::GET, None)
+            .await?;
 
     let home = response
-        .data.map(|data| data.home.home_timeline.instructions);
+        .data
+        .map(|data| data.home.home_timeline.instructions);
 
     let mut entries = Vec::new();
 
     if let Some(instructions) = home {
+        let instructions = instructions.split_at(1).0;
         for instruction in instructions {
             match instruction {
                 TimelineInstruction::AddEntries {
                     entries: new_entries,
                 } => {
                     for entry in new_entries {
-                        if let Some(item_content) = entry.content.item_content {
-                            if let Some(tweet_results) = item_content.tweet_results {
-                                if let Some(result) = tweet_results.result {
+                        if let Some(item_content) = &entry.content.item_content {
+                            if let Some(tweet_results) = &item_content.tweet_results {
+                                if let Some(result) = tweet_results.result.clone() {
+                                    let result: Tweet = serde_json::from_value(result)?;
                                     entries.push(result);
                                 }
                             }

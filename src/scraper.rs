@@ -63,8 +63,9 @@ impl Scraper {
         &self,
         count: i32,
         seen_tweet_ids: Vec<String>,
-    ) -> Result<Vec<Value>> {
-        crate::timeline::home::fetch_home_timeline(&self.twitter_client, count, seen_tweet_ids).await
+    ) -> Result<Vec<crate::timeline::types::Tweet>> {
+        crate::timeline::home::fetch_home_timeline(&self.twitter_client, count, seen_tweet_ids)
+            .await
     }
 
     pub async fn save_cookies(&self, cookie_file: &str) -> Result<()> {
